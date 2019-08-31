@@ -6,7 +6,8 @@ import File from '../models/File';
 import Appointment from '../models/Appointment';
 import Notification from '../schemas/Notification';
 
-import Mail from '../../lib/Mail';
+import CancellationMail from '../jobs/CancellationMail';
+import Queue from '../../lib/Queue';
 
 class AppointmentController {
   async index(req, res) {
@@ -108,11 +109,14 @@ class AppointmentController {
           as: 'provider',
           attributes: ['name', 'email'],
         },
+        {
+          model: User,
+          as: 'user',
+          attributes: ['name'],
+        },
       ],
     });
-    console.log('aqui');
-    console.log(appointment.user_id);
-    console.log(req.userId);
+
     if (appointment.user_id !== req.userId) {
       return res.status(401).json({ error: "You don't have permission" });
     }
@@ -129,10 +133,8 @@ class AppointmentController {
 
     await appointment.save();
 
-    await Mail.sendMail({
-      to: `${appointment.provider.name} <${appointment.provider.email}>`,
-      subject: 'Agendamento cancelado',
-      text: 'Novo cancelamento',
+    await Queue.add(CancellationMail.key, {
+      appointment,
     });
 
     return res.json();
